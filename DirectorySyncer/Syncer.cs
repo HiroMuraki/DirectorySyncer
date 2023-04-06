@@ -8,6 +8,7 @@ namespace DirectorySyncer;
 
 public class Syncer
 {
+    public const int TaskDelay = 1;
     public static Syncer Default { get; } = new();
 
     public event EventHandler<FileSyncedEventArgs>? FileSynced;
@@ -36,6 +37,7 @@ public class Syncer
         for (int i = 0; i < syncFiles.Length; i++)
         {
             await SyncFileCoreAsync(syncFiles[i], i);
+            await Task.Delay(TaskDelay);
         }
     }
 
