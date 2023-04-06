@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DirectorySyncer": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\11717\\Downloads\\sync_test\\A\" \"C:\\Users\\11717\\Downloads\\sync_test\\B\" --mode=dual"
+    }
+  }
+}
