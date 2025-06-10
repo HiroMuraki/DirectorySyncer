@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DirectorySyncer": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\11717\\Documents\" \"H:\\Main\" --mode=SourceToTarget"
+    }
+  }
+}

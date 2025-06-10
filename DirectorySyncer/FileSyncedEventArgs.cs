@@ -1,4 +1,6 @@
-﻿namespace DirectorySyncer;
+﻿using DirectorySyncer.FilesSyncer;
+
+namespace DirectorySyncer;
 
 public class FileSyncedEventArgs : EventArgs
 {

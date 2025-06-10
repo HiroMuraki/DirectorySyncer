@@ -1,10 +1,10 @@
 ﻿namespace DirectorySyncer;
 
-public class ErrorOccuredEventArgs : EventArgs
+public class ErrorOccurredEventArgs : EventArgs
 {
     public string ErrorMessage { get; }
 
-    public ErrorOccuredEventArgs(string errorMessage)
+    public ErrorOccurredEventArgs(string errorMessage)
     {
         ErrorMessage = errorMessage;
     }

@@ -1,16 +1,10 @@
-﻿using System.CommandLine;
-using System.Data;
+﻿using DirectorySyncer.FilesSyncer;
+using System.CommandLine;
 
 namespace DirectorySyncer;
 
 internal class Program
 {
-    private enum Mode
-    {
-        Dual,
-        SourceToTarget
-    }
-
     private readonly record struct WriteInfo
     {
         public static WriteInfo Space { get; } = new(" ");
@@ -32,8 +26,6 @@ internal class Program
         }
     }
 
-    private static string _directoryA = string.Empty;
-    private static string _directoryB = string.Empty;
     private static int _returnValue = 0;
 
     private static async Task<int> Main(string[] args)
@@ -60,14 +52,21 @@ internal class Program
                          $"- {nameof(Mode.Dual)}: The <sourceDirectory> and <targetDirectory> can be both act as either the source or target for syncing.\n"
         );
 
+        var autoSync = new Option<bool>(
+            name: "--autoSync",
+            getDefaultValue: () => false,
+            description: "Auto sync if possible."
+        );
+
         var rootCommand = new RootCommand()
         {
             sourceDirectory,
             targetDirectory,
             mode,
+            autoSync
         };
 
-        rootCommand.SetHandler(RootCommandHandler, sourceDirectory, targetDirectory, mode);
+        rootCommand.SetHandler(RootCommandHandler, sourceDirectory, targetDirectory, mode, autoSync);
 
         Syncer.Default.FileSynced += (s, e) =>
         {
@@ -83,39 +82,29 @@ internal class Program
         return _returnValue;
     }
 
-    private static async Task RootCommandHandler(string sourceDirectory, string targetDirectory, Mode mode)
+    private static async Task RootCommandHandler(string sourceDirectory, string targetDirectory, Mode mode, bool autoSync)
     {
-        _directoryA = sourceDirectory;
-        _directoryB = targetDirectory;
+        Syncer.Default.SourceDirectory = sourceDirectory;
+        Syncer.Default.TargetDirectory = targetDirectory;
+        Syncer.Default.Mode = mode;
 
-        SyncFile[] syncFiles;
-        switch (mode)
-        {
-            case Mode.Dual:
-                syncFiles = Syncer.Default.GetDualSyncFiles(_directoryA, _directoryB).OrderBy(s => s.SyncMode).ToArray();
-                break;
-            case Mode.SourceToTarget:
-                syncFiles = Syncer.Default.GetSyncFiles(_directoryA, _directoryB).OrderBy(s => s.SyncMode).ToArray();
-                break;
-            default:
-                throw new ArgumentException($"Invalid sync mode {mode}");
-        }
+        Syncer.Default.UpdateSyncFiles();
 
-        PrintSyncingInfo(syncFiles);
+        PrintSyncingInfo(Syncer.Default.SyncFiles);
         WriteLine();
 
-        if (!syncFiles.Any())
+        if (!Syncer.Default.SyncFiles.Any())
         {
             WriteLine(new WriteInfo("All files are already synced, nothing to be synced.", ConsoleColor.Green));
             return;
         }
 
-        if (PromptConfirmation())
+        if (autoSync || PromptConfirmation())
         {
             WriteLine(new WriteInfo("[Syncing started]", ConsoleColor.Green));
             try
             {
-                await Syncer.Default.SyncFilesAsync(syncFiles);
+                await Syncer.Default.SyncAllFilesAsync();
                 WriteLine(new WriteInfo("[Syncing completed]", ConsoleColor.Green));
             }
             catch (Exception e)
@@ -136,19 +125,19 @@ internal class Program
             return Console.ReadLine()?.ToLower() == "y";
         }
 
-        static void PrintSyncingInfo(SyncFile[] syncFiles)
+        static void PrintSyncingInfo(IReadOnlyList<SyncFile> syncFiles)
         {
-            WriteLine(GetDirectoryInfo(_directoryA), new WriteInfo(": ", ConsoleColor.DarkCyan), new WriteInfo(_directoryA, ConsoleColor.DarkCyan));
-            WriteLine(GetDirectoryInfo(_directoryB), new WriteInfo(": ", ConsoleColor.Yellow), new WriteInfo(_directoryB, ConsoleColor.Yellow));
+            WriteLine(GetDirectoryInfo(Syncer.Default.SourceDirectory), new WriteInfo(": ", ConsoleColor.DarkCyan), new WriteInfo(Syncer.Default.SourceDirectory , ConsoleColor.DarkCyan));
+            WriteLine(GetDirectoryInfo(Syncer.Default.TargetDirectory), new WriteInfo(": ", ConsoleColor.Yellow), new WriteInfo( Syncer.Default.TargetDirectory, ConsoleColor.Yellow));
 
             WriteLine(new WriteInfo("["));
-            for (int i = 0; i < syncFiles.Length; i++)
+            for (var i = 0; i < syncFiles.Count; i++)
             {
-                var updateColor = syncFiles[i].SyncMode switch
+                var updateColor = syncFiles[i].SyncType switch
                 {
-                    SyncMode.Copy => ConsoleColor.Red,
-                    SyncMode.Update => ConsoleColor.Green,
-                    _ => throw new ArgumentException($"Invalid sync mode {syncFiles[i].SyncMode}"),
+                    SyncType.Copy => ConsoleColor.Red,
+                    SyncType.Update => ConsoleColor.Green,
+                    _ => throw new ArgumentException($"Invalid sync mode {syncFiles[i].SyncType}"),
                 };
 
                 WriteLine(
@@ -165,28 +154,28 @@ internal class Program
             WriteLine(new WriteInfo("]"));
 
             WriteLine(
-                new WriteInfo($"Copy: {syncFiles.Count(s => s.SyncMode == SyncMode.Copy)}", ConsoleColor.Red),
+                new WriteInfo($"Copy: {syncFiles.Count(s => s.SyncType == SyncType.Copy)}", ConsoleColor.Red),
                 WriteInfo.Space, WriteInfo.Space, WriteInfo.Space, WriteInfo.Space,
-                new WriteInfo($"Update: {syncFiles.Count(s => s.SyncMode == SyncMode.Update)}", ConsoleColor.Green));
+                new WriteInfo($"Update: {syncFiles.Count(s => s.SyncType == SyncType.Update)}", ConsoleColor.Green));
 
             static WriteInfo GetDirectoryInfo(string directory)
             {
                 string dirSymbol;
                 ConsoleColor color;
 
-                if (directory == _directoryA)
+                if (directory == Syncer.Default.SourceDirectory )
                 {
                     dirSymbol = "{A}";
                     color = ConsoleColor.DarkCyan;
                 }
-                else if (directory == _directoryB)
+                else if (directory ==  Syncer.Default.TargetDirectory)
                 {
                     dirSymbol = "{B}";
                     color = ConsoleColor.Yellow;
                 }
                 else
                 {
-                    throw new ArgumentException($"The value of directory should be {_directoryA} or {_directoryB}.");
+                    throw new ArgumentException($"The value of directory should be {Syncer.Default.SourceDirectory } or { Syncer.Default.TargetDirectory}.");
                 }
 
                 return new WriteInfo(dirSymbol, color);
